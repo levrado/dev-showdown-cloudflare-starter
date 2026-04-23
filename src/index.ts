@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateObject, generateText } from 'ai';
+import { generateText } from 'ai';
 import { z } from 'zod';
 
 const INTERACTION_ID_HEADER = 'X-Interaction-Id';
@@ -54,34 +54,47 @@ export default {
 					throw new Error('DEV_SHOWDOWN_API_KEY is required');
 				}
 
-				const workshopLlm = createWorkshopLlm(env.DEV_SHOWDOWN_API_KEY, interactionId);
-				const { object } = await generateObject({
-					model: workshopLlm.chatModel('deli-4'),
-					schema: z.object({
-						name: z.string(),
-						price: z.number(),
-						currency: z.string(),
-						inStock: z.boolean(),
-						dimensions: z.object({
-							length: z.number(),
-							width: z.number(),
-							height: z.number(),
-							unit: z.string(),
-						}),
-						manufacturer: z.object({
-							name: z.string(),
-							country: z.string(),
-							website: z.string(),
-						}),
-						specifications: z.object({
-							weight: z.number(),
-							weightUnit: z.string(),
-							warrantyMonths: z.number(),
-						}),
+				const productSchema = z.object({
+					name: z.string(),
+					price: z.number(),
+					currency: z.string(),
+					inStock: z.boolean(),
+					dimensions: z.object({
+						length: z.number(),
+						width: z.number(),
+						height: z.number(),
+						unit: z.string(),
 					}),
+					manufacturer: z.object({
+						name: z.string(),
+						country: z.string(),
+						website: z.string(),
+					}),
+					specifications: z.object({
+						weight: z.number(),
+						weightUnit: z.string(),
+						warrantyMonths: z.number(),
+					}),
+				});
+
+				const workshopLlm = createWorkshopLlm(env.DEV_SHOWDOWN_API_KEY, interactionId);
+				const result = await generateText({
+					model: workshopLlm.chatModel('deli-4'),
+					system: `Extract product information from the description and return a JSON object with exactly this shape:
+{
+  "name": string,
+  "price": number,
+  "currency": string (3-letter code),
+  "inStock": boolean,
+  "dimensions": { "length": number, "width": number, "height": number, "unit": string },
+  "manufacturer": { "name": string, "country": string, "website": string },
+  "specifications": { "weight": number, "weightUnit": string, "warrantyMonths": number }
+}
+Return only the JSON object, no markdown, no explanation.`,
 					prompt: payload.description,
 				});
 
+				const object = productSchema.parse(JSON.parse(result.text));
 				return Response.json(object);
 			}
 			default:
