@@ -94,7 +94,8 @@ Return only the JSON object, no markdown, no explanation.`,
 					prompt: payload.description,
 				});
 
-				const object = productSchema.parse(JSON.parse(result.text));
+				const raw = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+				const object = productSchema.parse(JSON.parse(raw));
 				return Response.json(object);
 			}
 			default:
